@@ -5,32 +5,48 @@ import json
 import os
 import requests
 import time
+import random
 
-from telegram.ext import Updater, CommandHandler,  MessageHandler, Filters
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 USDTOD = 0
 
 def help_command(update, context):
 	update.message.reply_text('/price - текущая цена')
 
 def start(update, context):
-    context.bot.send_message(chat_id=update.effective_chat.id, text="Привет! Я бот следящий за курсом акций и валют. Вот что я умею (или скоро научусь):")
-    help_command(update, context)
+	chat_id = update.message.chat_id
+	context.bot.send_message(chat_id=update.effective_chat.id, text="Привет!\nЯ бот, следящий за курсом акций и валют. Моё предназначение это оперативное оповещение тебя, когда стоимость ценных бумаг начнёт падать после роста (или расти после падения). Сейчас я помогу тебе потерять все свои деньги.\nВот что я умею:")
+	help_command(update, context)
 
 def price_command(update, context):
-    update.message.reply_text("USD: %.4f" % (USDTOD))
+	text = "USD: %.4f" % (USDTOD)
+	text += "\n /sub_usd_fall - уведомить когда цена начнет падать"
+	text += "\n /sub_usd_rise - уведомить когда цена начнет расти"
+	update.message.reply_text(text)
+
+def subscribe_command(update, context):
+	arg = update.message.text.replace('/sub_', '').split('_')
+	print(arg)
+	if arg[0] != 'usd':
+		return
+	if arg[1] == 'rise':
+		update.message.reply_text("Текущая стоимость USD: %.4f\nЯ сообщю, когда цена начнёт расти. Триггер: >%.4f" % (USDTOD, USDTOD*1.0025))
+	if arg[1] == 'fall':
+		update.message.reply_text("Текущая стоимость USD: %.4f\nЯ сообщю, когда цена начнёт падать. Триггер: <%.4f" % (USDTOD, USDTOD*0.9975))
 
 def echo(update, context):
-    help_command(update, context)
+	help_command(update, context)
 
 base_dir = os.path.dirname(__file__)
 with open(os.path.join(base_dir, "config.json"), "r") as config_file:
-    config = json.load(config_file)
+	config = json.load(config_file)
 
 updater = Updater(token=config['TOKEN'], use_context=True)
 dp = updater.dispatcher
 dp.add_handler(CommandHandler("start", start))
 dp.add_handler(CommandHandler("help", help_command))
 dp.add_handler(CommandHandler("price", price_command))
+dp.add_handler(MessageHandler(Filters.regex(r'^/sub'), subscribe_command))
 dp.add_handler(MessageHandler(Filters.text & ~Filters.command, echo))
 updater.start_polling()
 
