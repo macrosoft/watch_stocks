@@ -6,15 +6,17 @@ import os
 import requests
 import time
 import random
+import sqlite3
 
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+
+alarm_txt = ['Хорошая новость!', 'Плохая новость!', 'Ого!', 'Шевелись!', 'Аларм!', 'Внимание!', 'Полундра!', 'Срочно!', 'Бип-биб!', 'Как тебе такое?', 'Дожили!', 'Алло!', 'Ты здесь?', 'Тут такое дело...']
 USDTOD = 0
 
 def help_command(update, context):
 	update.message.reply_text('/price - текущая цена')
 
 def start(update, context):
-	chat_id = update.message.chat_id
 	context.bot.send_message(chat_id=update.effective_chat.id, text="Привет!\nЯ бот, следящий за курсом акций и валют. Моё предназначение это оперативное оповещение тебя, когда стоимость ценных бумаг начнёт падать после роста (или расти после падения). Сейчас я помогу тебе потерять все свои деньги.\nВот что я умею:")
 	help_command(update, context)
 
@@ -41,6 +43,13 @@ base_dir = os.path.dirname(__file__)
 with open(os.path.join(base_dir, "config.json"), "r") as config_file:
 	config = json.load(config_file)
 
+conn = sqlite3.connect(os.path.join(base_dir, "data.db"), check_same_thread=False)
+cursor = conn.cursor()
+cursor.execute("CREATE TABLE IF NOT EXISTS ticker (id INTEGER PRIMARY KEY, name TEXT, value REAL, dt DATETIME)")
+for t in config["tickers"]:
+	cursor.execute("INSERT OR REPLACE INTO ticker (id, name) VALUES(%d, '%s')" % (t['id'], t['name']))
+	conn.commit()
+
 updater = Updater(token=config['TOKEN'], use_context=True)
 dp = updater.dispatcher
 dp.add_handler(CommandHandler("start", start))
@@ -54,5 +63,8 @@ url = "https://iss.moex.com/iss/engines/currency/markets/selt/securities.json?is
 while 1:
 	r = requests.get(url=url)
 	data = r.json()
-	USDTOD = data['marketdata']['data'][0][8]
+	USDTOD = data['marketdata']['data'][0][8] - 1.0 + random.random() #debug
+	cursor.execute("UPDATE ticker SET value = %f, dt = DATETIME(CURRENT_TIMESTAMP, 'localtime') WHERE id = 1" % (USDTOD))
+	conn.commit()
+	#print(random.choice(alarm_txt)) #todo
 	time.sleep(60)
