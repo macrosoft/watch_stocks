@@ -10,7 +10,7 @@ import sqlite3
 
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
-alarm_txt = ['Хорошая новость!', 'Плохая новость!', 'Ого!', 'Шевелись!', 'Аларм!', 'Внимание!', 'Полундра!', 'Срочно!', 'Бип-биб!', 'Как тебе такое?', 'Дожили!', 'Алло!', 'Ты здесь?', 'Тут такое дело...']
+alarm_txt_prev = ['Хорошая новость!', 'Плохая новость!', 'Ого!', 'Шевелись!', 'Аларм!', 'Внимание!', 'Полундра!', 'Срочно!', 'Бип-биб!', 'Как тебе такое?', 'Дожили!', 'Алло!', 'Ты здесь?', 'Тут такое дело...', 'Вот ты и дождался!']
 USDTOD = 0
 
 def help_command(update, context):
@@ -96,8 +96,17 @@ url = "https://iss.moex.com/iss/engines/currency/markets/selt/securities.json?is
 while 1:
 	r = requests.get(url=url)
 	data = r.json()
-	USDTOD = data['marketdata']['data'][0][8] - 1.0 + random.random() #debug
+	USDTOD = data['marketdata']['data'][0][8]
 	cursor.execute("UPDATE ticker SET value = %f, dt = DATETIME(CURRENT_TIMESTAMP, 'localtime') WHERE id = 1" % (USDTOD))
+	cursor.execute("UPDATE subscribe SET refval = %f WHERE ticker = 1 AND direction = 0 AND refval < %f" % (USDTOD, USDTOD))
+	cursor.execute("UPDATE subscribe SET refval = %f WHERE ticker = 1 AND direction = 1 AND refval > %f" % (USDTOD, USDTOD))
+	cursor.execute("SELECT uid, t.name, direction, refval, t.value, ticker FROM subscribe s JOIN ticker t ON t.id = s.ticker WHERE direction = 1 AND t.value > refval*1.0025 OR direction = 0 AND t.value < refval*0.9975")
+	rows = cursor.fetchall()
+	for row in rows:
+		dir = "вырос" if row[2] else "упал"
+		dirn = "rise" if row[2] else "fall"
+		text = "%s %s %s с %.4f до %.4f. Продолжить наблюдение: /sub_%s_%s" % (random.choice(alarm_txt_prev), row[1], dir, row[3], row[4], row[1].lower(), dirn)
+		updater.bot.send_message(chat_id=row[0], text=text)
+		cursor.execute("DELETE FROM subscribe WHERE uid = %d AND ticker = %d AND direction = %d" % (row[0], row[5], row[2]))
 	conn.commit()
-	#print(random.choice(alarm_txt)) #todo
 	time.sleep(60)
