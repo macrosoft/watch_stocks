@@ -14,10 +14,10 @@ alarm_txt = ['Хорошая новость!', 'Плохая новость!', '
 USDTOD = 0
 
 def help_command(update, context):
-	update.message.reply_text('/status - показать подписки\n/price - курс доллара')
+	update.message.reply_text('/help - вывести список команд (этот)\n/status - показать подписки\n/price - курс доллара')
 
 def start(update, context):
-	context.bot.send_message(chat_id=update.effective_chat.id, text="Привет!\nЯ бот, следящий за курсом акций и валют. Моё предназначение это оперативное оповещение тебя, когда стоимость ценных бумаг начнёт падать после роста (или расти после падения). Сейчас я помогу тебе потерять все свои деньги.\nВот что я умею:")
+	context.bot.send_message(chat_id=update.effective_chat.id, text="Привет!\nЯ бот, следящий за курсом акций и валют. Моё предназначение это оперативное оповещение о том, что стоимость ценных бумаг падает после роста (или растёт после падения). Сейчас я помогу тебе потерять все свои деньги.\nВот что я умею:")
 	help_command(update, context)
 
 def price_command(update, context):
@@ -53,6 +53,19 @@ def subscribe_command(update, context):
 		conn.commit()
 		update.message.reply_text("Текущая стоимость USD: %.4f\nЯ сообщю, когда цена начнёт падать. Триггер: <%.4f" % (USDTOD, USDTOD*0.9975))
 
+def unsubscribe_command(update, context):
+	arg = update.message.text.replace('/unsub_', '').split('_')
+	if arg[0] != 'usd':
+		return
+	if arg[1] == 'rise':
+		cursor.execute("DELETE FROM subscribe WHERE uid = %d AND ticker = 1 AND direction = 1" % (update.effective_chat.id))
+		conn.commit()
+		update.message.reply_text("Больше ни слова о росте USD")
+	if arg[1] == 'fall':
+		cursor.execute("DELETE FROM subscribe WHERE uid = %d AND ticker = 1 AND direction = 0" % (update.effective_chat.id))
+		conn.commit()
+		update.message.reply_text("Больше ни слова о падении USD")
+
 def echo(update, context):
 	help_command(update, context)
 
@@ -75,6 +88,7 @@ dp.add_handler(CommandHandler("help", help_command))
 dp.add_handler(CommandHandler("price", price_command))
 dp.add_handler(CommandHandler("status", status_command))
 dp.add_handler(MessageHandler(Filters.regex(r'^/sub'), subscribe_command))
+dp.add_handler(MessageHandler(Filters.regex(r'^/unsub'), unsubscribe_command))
 dp.add_handler(MessageHandler(Filters.text & ~Filters.command, echo))
 updater.start_polling()
 
