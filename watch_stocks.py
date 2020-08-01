@@ -22,18 +22,21 @@ def start(update, context):
 
 def price_command(update, context):
 	text = "USD: %.4f" % (USDTOD)
-	text += "\n /sub_usd_fall - уведомить когда цена начнет падать"
-	text += "\n /sub_usd_rise - уведомить когда цена начнет расти"
+	text += "\n /sub_usd_fall - сообщить когда цена начнет падать"
+	text += "\n /sub_usd_rise - сообщить когда цена начнет расти"
 	update.message.reply_text(text)
 
 def subscribe_command(update, context):
 	arg = update.message.text.replace('/sub_', '').split('_')
-	print(arg)
 	if arg[0] != 'usd':
 		return
 	if arg[1] == 'rise':
+		cursor.execute("INSERT OR REPLACE INTO subscribe (uid, ticker, direction, refval, dt) VALUES(%d, %d, %d, %f, DATETIME(CURRENT_TIMESTAMP, 'localtime'))" % (update.effective_chat.id, 1, 1, USDTOD))
+		conn.commit()
 		update.message.reply_text("Текущая стоимость USD: %.4f\nЯ сообщю, когда цена начнёт расти. Триггер: >%.4f" % (USDTOD, USDTOD*1.0025))
 	if arg[1] == 'fall':
+		cursor.execute("INSERT OR REPLACE INTO subscribe (uid, ticker, direction, refval, dt) VALUES(%d, %d, %d, %f, DATETIME(CURRENT_TIMESTAMP, 'localtime'))" % (update.effective_chat.id, 1, 0, USDTOD))
+		conn.commit()
 		update.message.reply_text("Текущая стоимость USD: %.4f\nЯ сообщю, когда цена начнёт падать. Триггер: <%.4f" % (USDTOD, USDTOD*0.9975))
 
 def echo(update, context):
@@ -48,7 +51,8 @@ cursor = conn.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS ticker (id INTEGER PRIMARY KEY, name TEXT, value REAL, dt DATETIME)")
 for t in config["tickers"]:
 	cursor.execute("INSERT OR REPLACE INTO ticker (id, name) VALUES(%d, '%s')" % (t['id'], t['name']))
-	conn.commit()
+cursor.execute("CREATE TABLE IF NOT EXISTS subscribe (uid INTEGER, ticker INTEGER, direction BOOLEAN, refval REAL, dt DATETIME, UNIQUE(uid, ticker, direction))")
+conn.commit()
 
 updater = Updater(token=config['TOKEN'], use_context=True)
 dp = updater.dispatcher
