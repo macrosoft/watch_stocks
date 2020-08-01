@@ -14,7 +14,7 @@ alarm_txt = ['Хорошая новость!', 'Плохая новость!', '
 USDTOD = 0
 
 def help_command(update, context):
-	update.message.reply_text('/price - текущая цена')
+	update.message.reply_text('/status - показать подписки\n/price - курс доллара')
 
 def start(update, context):
 	context.bot.send_message(chat_id=update.effective_chat.id, text="Привет!\nЯ бот, следящий за курсом акций и валют. Моё предназначение это оперативное оповещение тебя, когда стоимость ценных бумаг начнёт падать после роста (или расти после падения). Сейчас я помогу тебе потерять все свои деньги.\nВот что я умею:")
@@ -24,6 +24,20 @@ def price_command(update, context):
 	text = "USD: %.4f" % (USDTOD)
 	text += "\n /sub_usd_fall - сообщить когда цена начнет падать"
 	text += "\n /sub_usd_rise - сообщить когда цена начнет расти"
+	update.message.reply_text(text)
+
+def status_command(update, context):
+	cursor.execute("SELECT t.name, direction, refval, t.value FROM subscribe s JOIN ticker t ON t.id = s.ticker WHERE uid = %d" % (update.effective_chat.id))
+	rows = cursor.fetchall()
+	text = "Действующих подписок нет :("
+	if len(rows) > 0:
+		text = "Твои подписки:\n"
+		for row in rows:
+			dir = "Рост" if row[1] else "Падение"
+			tdir = ">" if row[1] else "<"
+			t = row[2]*1.0025 if row[1] else row[2]*0.9975
+			dirn = "rise" if row[1] else "fall"
+			text += "%s %s: %.4f (%s%.4f)\nОтписаться: /unsub_%s_%s\n" % (dir, row[0], row[3], tdir, t, row[0].lower(), dirn)
 	update.message.reply_text(text)
 
 def subscribe_command(update, context):
@@ -59,6 +73,7 @@ dp = updater.dispatcher
 dp.add_handler(CommandHandler("start", start))
 dp.add_handler(CommandHandler("help", help_command))
 dp.add_handler(CommandHandler("price", price_command))
+dp.add_handler(CommandHandler("status", status_command))
 dp.add_handler(MessageHandler(Filters.regex(r'^/sub'), subscribe_command))
 dp.add_handler(MessageHandler(Filters.text & ~Filters.command, echo))
 updater.start_polling()
