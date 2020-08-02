@@ -3,6 +3,7 @@
 
 import json
 import os
+import re
 import requests
 import time
 import random
@@ -13,9 +14,10 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 alarm_txt_prev = ['Хорошая новость!', 'Плохая новость!', 'Ого!', 'Шевелись!', 'Аларм!', 'Внимание!', 'Полундра!', 'Срочно!', 'Бип-биб!', 'Как тебе такое?', 'Дожили!', 'Алло!', 'Ты здесь?', 'Тут такое дело...', 'Вот ты и дождался!', 'Тссс...!', 'Кхе-кхе...', 'Докладываю!', 'Breaking news!', 'Ку-ку!', 'Короче, ']
 USDTOD = 0
 EURTOD = 0
+STOCKS_LIST = []
 
 def help_command(update, context):
-	update.message.reply_text('/status - показать подписки\n/currency - курс валют')
+	update.message.reply_text('Напиши название ценной бумаги для того чтобы найти её.\n/status - показать подписки\n/currency - курс валют')
 
 def start(update, context):
 	text = "Привет!\nЯ бот, следящий за курсом акций и валют. Моё предназначение это оперативное оповещение о том, что стоимость ценных бумаг падает после роста (или растёт после падения). Сейчас я помогу тебе потерять все свои деньги.\nВот что я умею:"
@@ -74,8 +76,23 @@ def unsubscribe_command(update, context):
 		conn.commit()
 		update.message.reply_text("Больше ни слова о падении %s %s" % (arg[0].upper(), random.choice(emoji)))
 
-def echo(update, context):
-	help_command(update, context)
+def search(update, context):
+	t = update.message.text
+	if len(t) <= 3:
+		fingers = ['\U0001F595', '\U0001F448 ', '\U0001F449 ', '\U0001F446 ', '\U0001F447 ', '\U0000261D ', '\U0001F44D ', '\U0001F44E']
+		text = "Для поиска нужно минимум 4 символа!"
+		for i in range(0, 4):
+			text += random.choice(fingers)
+		update.message.reply_text(text)
+		return
+	text = ""
+	for stock in STOCKS_LIST:
+		if re.search(t, "".join(stock), re.IGNORECASE):
+			text += "%s\n%s\n\n" % (stock[0], stock[2])
+	if len(text) > 0:
+		update.message.reply_text(text)
+	else:
+		update.message.reply_text("Увы, ничего не найдено! \U00000034\U0000FE0F\U000020E3\U0001F631\U00000034\U0000FE0F\U000020E3")
 
 base_dir = os.path.dirname(__file__)
 with open(os.path.join(base_dir, "config.json"), "r") as config_file:
@@ -97,7 +114,7 @@ dp.add_handler(CommandHandler("currency", currency_command))
 dp.add_handler(CommandHandler("status", status_command))
 dp.add_handler(MessageHandler(Filters.regex(r'^/sub'), subscribe_command))
 dp.add_handler(MessageHandler(Filters.regex(r'^/unsub'), unsubscribe_command))
-dp.add_handler(MessageHandler(Filters.text & ~Filters.command, echo))
+dp.add_handler(MessageHandler(Filters.text & ~Filters.command, search))
 updater.start_polling()
 
 url_currency = "https://iss.moex.com/iss/engines/currency/markets/selt/boards/CETS/securities.json?iss.meta=off&iss.only=marketdata&securities=USD000000TOD%2CEUR_RUB__TOD&marketdata.columns=SECID,LAST"
@@ -108,12 +125,13 @@ while 1:
 	data = r.json()
 	for row in data['marketdata']['data']:
 		if row[0] == 'USD000000TOD':
-			USDTOD = row[1] + random.random()
+			USDTOD = row[1]
 		if row[0] == 'EUR_RUB__TOD':
-			EURTOD = row[1] + random.random()
+			EURTOD = row[1]
 	cursor.execute("UPDATE ticker SET value = %f, dt = DATETIME(CURRENT_TIMESTAMP, 'localtime') WHERE name = 'USD'" % (USDTOD))
 	cursor.execute("UPDATE ticker SET value = %f, dt = DATETIME(CURRENT_TIMESTAMP, 'localtime') WHERE name = 'EUR'" % (EURTOD))
-
+	r = requests.get(url=url_stocks)
+	STOCKS_LIST = r.json()['securities']['data']
 	cursor.execute("UPDATE subscribe SET refval = (SELECT value FROM ticker WHERE id = subscribe.ticker) WHERE ticker = 1 AND type = 0 AND refval < (SELECT value FROM ticker WHERE id = subscribe.ticker)")
 	cursor.execute("UPDATE subscribe SET refval = (SELECT value FROM ticker WHERE id = subscribe.ticker) WHERE ticker = 1 AND type = 1 AND refval > (SELECT value FROM ticker WHERE id = subscribe.ticker)")
 	conn.commit()
