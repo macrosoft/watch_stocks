@@ -80,7 +80,7 @@ def search(update, context):
 	t = update.message.text
 	if len(t) <= 3:
 		fingers = ['\U0001F595', '\U0001F448 ', '\U0001F449 ', '\U0001F446 ', '\U0001F447 ', '\U0000261D ', '\U0001F44D ', '\U0001F44E']
-		text = "Для поиска нужно минимум 4 символа!"
+		text = "Для поиска нужно минимум 4 символа! Считай: "
 		for i in range(0, 4):
 			text += random.choice(fingers)
 		update.message.reply_text(text)
