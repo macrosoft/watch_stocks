@@ -10,7 +10,7 @@ import sqlite3
 from telegram import ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
-alarm_txt_prev = ['Хорошая новость!', 'Плохая новость!', 'Ого!', 'Шевелись!', 'Аларм!', 'Внимание!', 'Полундра!', 'Срочно!', 'Бип-биб!', 'Как тебе такое?', 'Дожили!', 'Алло!', 'Ты здесь?', 'Тут такое дело...', 'Вот ты и дождался!']
+alarm_txt_prev = ['Хорошая новость!', 'Плохая новость!', 'Ого!', 'Шевелись!', 'Аларм!', 'Внимание!', 'Полундра!', 'Срочно!', 'Бип-биб!', 'Как тебе такое?', 'Дожили!', 'Алло!', 'Ты здесь?', 'Тут такое дело...', 'Вот ты и дождался!', 'Тссс...!', 'Кхе-кхе...', 'Докладываю!', 'Breaking news!']
 USDTOD = 0
 EURTOD = 0
 
@@ -25,21 +25,21 @@ def start(update, context):
 
 def currency_command(update, context):
 	text = "USD: %.4f" % (USDTOD)
-	text += "\n /sub_usd_fall - сообщить когда цена начнёт падать"
-	text += "\n /sub_usd_rise - сообщить когда цена начнёт расти"
+	text += "\n /sub_usd_fall - сообщить когда цена начнёт падать \U0001F4C9"
+	text += "\n /sub_usd_rise - сообщить когда цена начнёт расти \U0001F4C8"
 	text += "\nEUR: %.4f" % (EURTOD)
-	text += "\n /sub_eur_fall - сообщить когда цена начнёт падать"
-	text += "\n /sub_eur_rise - сообщить когда цена начнёт расти"
+	text += "\n /sub_eur_fall - сообщить когда цена начнёт падать \U0001F4C9"
+	text += "\n /sub_eur_rise - сообщить когда цена начнёт расти \U0001F4C8"
 	update.message.reply_text(text)
 
 def status_command(update, context):
 	cursor.execute("SELECT t.name, direction, refval, t.value FROM subscribe s JOIN ticker t ON t.id = s.ticker WHERE uid = %d" % (update.effective_chat.id))
 	rows = cursor.fetchall()
-	text = "Действующих подписок нет :("
+	text = "Действующих подписок нет \U0001F610"
 	if len(rows) > 0:
 		text = "Твои подписки:\n"
 		for row in rows:
-			dir = "Рост" if row[1] else "Падение"
+			dir = "Рост \U0001F4C8" if row[1] else "Падение \U0001F4C9"
 			tdir = ">" if row[1] else "<"
 			t = row[2]*1.0025 if row[1] else row[2]*0.9975
 			dirn = "rise" if row[1] else "fall"
@@ -60,18 +60,19 @@ def subscribe_command(update, context):
 	dirtxt = "расти" if dir else "падать"
 	dirtrg = ">" if dir else "<"
 	k = 1.0025 if dir else 0.9975
-	update.message.reply_text("Текущая стоимость %s: %.4f\nЯ сообщю, когда цена начнёт %s. Триггер: %s%.4f" % (arg[0].upper(), value, dirtxt, dirtrg, value*k))
+	update.message.reply_text("Текущая стоимость %s: %.4f\nЯ сообщю, когда цена начнёт %s\U0001F60F Триггер: %s%.4f" % (arg[0].upper(), value, dirtxt, dirtrg, value*k))
 
 def unsubscribe_command(update, context):
 	arg = update.message.text.replace('/unsub_', '').split('_')
+	emoji = ['\U0001F910','\U0001F928','\U0001F610','\U0001F611','\U0001F636','\U0001F60F','\U0001F612','\U0001F644','\U0001F62C','\U0001F925','\U0001F637','\U0001F44C','\U0001F926']
 	if arg[1] == 'rise':
 		cursor.execute("DELETE FROM subscribe WHERE uid = %d AND ticker = (SELECT id FROM ticker WHERE name like '%s') AND direction = 1" % (update.effective_chat.id, arg[0]))
 		conn.commit()
-		update.message.reply_text("Больше ни слова о росте " + arg[0].upper())
+		update.message.reply_text("Больше ни слова о росте %s %s" % (arg[0].upper(), random.choice(emoji)))
 	if arg[1] == 'fall':
 		cursor.execute("DELETE FROM subscribe WHERE uid = %d AND ticker = (SELECT id FROM ticker WHERE name like '%s') AND direction = 0" % (update.effective_chat.id, arg[0]))
 		conn.commit()
-		update.message.reply_text("Больше ни слова о падении " + arg[0].upper())
+		update.message.reply_text("Больше ни слова о падении %s %s" % (arg[0].upper(), random.choice(emoji)))
 
 def echo(update, context):
 	help_command(update, context)
@@ -100,6 +101,7 @@ dp.add_handler(MessageHandler(Filters.text & ~Filters.command, echo))
 updater.start_polling()
 
 url = "https://iss.moex.com/iss/engines/currency/markets/selt/securities.json?iss.meta=off&iss.only=securities%2Cmarketdata&securities=USD000000TOD%2CEUR_RUB__TOD"
+emoji = ['\U0001F600', '\U0001F603', '\U0001F604', '\U0001F601', '\U0001F606', '\U0001F605', '\U0001F923', '\U0001F602', '\U0001F642', '\U0001F643', '\U0001F609', '\U0001F60A', '\U0001F607', '\U0001F60B', '\U0001F61B', '\U0001F61C', '\U0001F92A', '\U0001F61D', '\U0001F911', '\U0001F92D', '\U0001F92B', '\U0001F914', '\U0001F922', '\U0001F92E', '\U0001F92E', '\U0001F927', '\U0001F975', '\U0001F976', '\U0001F974', '\U0001F635', '\U0001F92F', '\U0001F973', '\U0001F60E', '\U0001F4A9', '\U0001F648', '\U0001F649', '\U0001F64A', '\U0001F90F', '\U0001F91F', '\U0001F595', '\U0001F44D', '\U0001F44E', '\U0001F4AA', '\U0001F9E8', '\U0001F910','\U0001F928','\U0001F610','\U0001F611','\U0001F636','\U0001F60F','\U0001F612','\U0001F644','\U0001F62C','\U0001F925','\U0001F637','\U0001F44C','\U0001F926']
 while 1:
 	r = requests.get(url=url)
 	data = r.json()
@@ -112,9 +114,9 @@ while 1:
 	cursor.execute("SELECT uid, t.name, direction, refval, t.value, ticker FROM subscribe s JOIN ticker t ON t.id = s.ticker WHERE direction = 1 AND t.value > refval*1.0025 OR direction = 0 AND t.value < refval*0.9975")
 	rows = cursor.fetchall()
 	for row in rows:
-		dir = "вырос" if row[2] else "упал"
+		dir = "вырос \U0001F4C8" if row[2] else "упал \U0001F4C9"
 		dirn = "rise" if row[2] else "fall"
-		text = "%s %s %s с %.4f до %.4f. Продолжить наблюдение: /sub_%s_%s" % (random.choice(alarm_txt_prev), row[1], dir, row[3], row[4], row[1].lower(), dirn)
+		text = "%s %s %s с %.4f до %.4f. %s Продолжить наблюдение: /sub_%s_%s" % (random.choice(alarm_txt_prev), row[1], dir, row[3], row[4], random.choice(emoji), row[1].lower(), dirn)
 		updater.bot.send_message(chat_id=row[0], text=text)
 		cursor.execute("DELETE FROM subscribe WHERE uid = %d AND ticker = %d AND direction = %d" % (row[0], row[5], row[2]))
 	conn.commit()
