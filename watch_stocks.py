@@ -7,23 +7,29 @@ import requests
 import time
 import random
 import sqlite3
-
+from telegram import ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
 alarm_txt_prev = ['Хорошая новость!', 'Плохая новость!', 'Ого!', 'Шевелись!', 'Аларм!', 'Внимание!', 'Полундра!', 'Срочно!', 'Бип-биб!', 'Как тебе такое?', 'Дожили!', 'Алло!', 'Ты здесь?', 'Тут такое дело...', 'Вот ты и дождался!']
 USDTOD = 0
+EURTOD = 0
 
 def help_command(update, context):
-	update.message.reply_text('/help - вывести список команд (этот)\n/status - показать подписки\n/price - курс доллара')
+	update.message.reply_text('/status - показать подписки\n/currency - курс валют')
 
 def start(update, context):
-	context.bot.send_message(chat_id=update.effective_chat.id, text="Привет!\nЯ бот, следящий за курсом акций и валют. Моё предназначение это оперативное оповещение о том, что стоимость ценных бумаг падает после роста (или растёт после падения). Сейчас я помогу тебе потерять все свои деньги.\nВот что я умею:")
+	text = "Привет!\nЯ бот, следящий за курсом акций и валют. Моё предназначение это оперативное оповещение о том, что стоимость ценных бумаг падает после роста (или растёт после падения). Сейчас я помогу тебе потерять все свои деньги.\nВот что я умею:"
+	reply_markup = ReplyKeyboardMarkup([[KeyboardButton('/status'), KeyboardButton('/help')]],resize_keyboard = True)
+	updater.bot.send_message(chat_id=update.effective_chat.id, text=text, reply_markup=reply_markup)
 	help_command(update, context)
 
-def price_command(update, context):
+def currency_command(update, context):
 	text = "USD: %.4f" % (USDTOD)
-	text += "\n /sub_usd_fall - сообщить когда цена начнет падать"
-	text += "\n /sub_usd_rise - сообщить когда цена начнет расти"
+	text += "\n /sub_usd_fall - сообщить когда цена начнёт падать"
+	text += "\n /sub_usd_rise - сообщить когда цена начнёт расти"
+	text += "\nEUR: %.4f" % (EURTOD)
+	text += "\n /sub_eur_fall - сообщить когда цена начнёт падать"
+	text += "\n /sub_eur_rise - сообщить когда цена начнёт расти"
 	update.message.reply_text(text)
 
 def status_command(update, context):
@@ -42,29 +48,30 @@ def status_command(update, context):
 
 def subscribe_command(update, context):
 	arg = update.message.text.replace('/sub_', '').split('_')
-	if arg[0] != 'usd':
+	cursor.execute("SELECT id, value FROM ticker WHERE name like '%s'" % (arg[0]))
+	rows = cursor.fetchall()
+	if len(rows) < 1:
 		return
-	if arg[1] == 'rise':
-		cursor.execute("INSERT OR REPLACE INTO subscribe (uid, ticker, direction, refval, dt) VALUES(%d, %d, %d, %f, DATETIME(CURRENT_TIMESTAMP, 'localtime'))" % (update.effective_chat.id, 1, 1, USDTOD))
-		conn.commit()
-		update.message.reply_text("Текущая стоимость USD: %.4f\nЯ сообщю, когда цена начнёт расти. Триггер: >%.4f" % (USDTOD, USDTOD*1.0025))
-	if arg[1] == 'fall':
-		cursor.execute("INSERT OR REPLACE INTO subscribe (uid, ticker, direction, refval, dt) VALUES(%d, %d, %d, %f, DATETIME(CURRENT_TIMESTAMP, 'localtime'))" % (update.effective_chat.id, 1, 0, USDTOD))
-		conn.commit()
-		update.message.reply_text("Текущая стоимость USD: %.4f\nЯ сообщю, когда цена начнёт падать. Триггер: <%.4f" % (USDTOD, USDTOD*0.9975))
+	ticker_id = rows[0][0]
+	value = rows[0][1]
+	dir = 1 if arg[1] == 'rise' else 0
+	cursor.execute("INSERT OR REPLACE INTO subscribe (uid, ticker, direction, refval, dt) VALUES(%d, %d, %d, (SELECT value FROM ticker WHERE id = %d), DATETIME(CURRENT_TIMESTAMP, 'localtime'))" % (update.effective_chat.id, ticker_id, dir, ticker_id))
+	conn.commit()
+	dirtxt = "расти" if dir else "падать"
+	dirtrg = ">" if dir else "<"
+	k = 1.0025 if dir else 0.9975
+	update.message.reply_text("Текущая стоимость %s: %.4f\nЯ сообщю, когда цена начнёт %s. Триггер: %s%.4f" % (arg[0].upper(), value, dirtxt, dirtrg, value*k))
 
 def unsubscribe_command(update, context):
 	arg = update.message.text.replace('/unsub_', '').split('_')
-	if arg[0] != 'usd':
-		return
 	if arg[1] == 'rise':
-		cursor.execute("DELETE FROM subscribe WHERE uid = %d AND ticker = 1 AND direction = 1" % (update.effective_chat.id))
+		cursor.execute("DELETE FROM subscribe WHERE uid = %d AND ticker = (SELECT id FROM ticker WHERE name like '%s') AND direction = 1" % (update.effective_chat.id, arg[0]))
 		conn.commit()
-		update.message.reply_text("Больше ни слова о росте USD")
+		update.message.reply_text("Больше ни слова о росте " + arg[0].upper())
 	if arg[1] == 'fall':
-		cursor.execute("DELETE FROM subscribe WHERE uid = %d AND ticker = 1 AND direction = 0" % (update.effective_chat.id))
+		cursor.execute("DELETE FROM subscribe WHERE uid = %d AND ticker = (SELECT id FROM ticker WHERE name like '%s') AND direction = 0" % (update.effective_chat.id, arg[0]))
 		conn.commit()
-		update.message.reply_text("Больше ни слова о падении USD")
+		update.message.reply_text("Больше ни слова о падении " + arg[0].upper())
 
 def echo(update, context):
 	help_command(update, context)
@@ -85,19 +92,21 @@ updater = Updater(token=config['TOKEN'], use_context=True)
 dp = updater.dispatcher
 dp.add_handler(CommandHandler("start", start))
 dp.add_handler(CommandHandler("help", help_command))
-dp.add_handler(CommandHandler("price", price_command))
+dp.add_handler(CommandHandler("currency", currency_command))
 dp.add_handler(CommandHandler("status", status_command))
 dp.add_handler(MessageHandler(Filters.regex(r'^/sub'), subscribe_command))
 dp.add_handler(MessageHandler(Filters.regex(r'^/unsub'), unsubscribe_command))
 dp.add_handler(MessageHandler(Filters.text & ~Filters.command, echo))
 updater.start_polling()
 
-url = "https://iss.moex.com/iss/engines/currency/markets/selt/securities.json?iss.meta=off&iss.only=securities%2Cmarketdata&securities=USD000000TOD"
+url = "https://iss.moex.com/iss/engines/currency/markets/selt/securities.json?iss.meta=off&iss.only=securities%2Cmarketdata&securities=USD000000TOD%2CEUR_RUB__TOD"
 while 1:
 	r = requests.get(url=url)
 	data = r.json()
-	USDTOD = data['marketdata']['data'][0][8]
+	EURTOD = data['marketdata']['data'][0][8]
+	USDTOD = data['marketdata']['data'][1][8]
 	cursor.execute("UPDATE ticker SET value = %f, dt = DATETIME(CURRENT_TIMESTAMP, 'localtime') WHERE id = 1" % (USDTOD))
+	cursor.execute("UPDATE ticker SET value = %f, dt = DATETIME(CURRENT_TIMESTAMP, 'localtime') WHERE id = 2" % (EURTOD))
 	cursor.execute("UPDATE subscribe SET refval = %f WHERE ticker = 1 AND direction = 0 AND refval < %f" % (USDTOD, USDTOD))
 	cursor.execute("UPDATE subscribe SET refval = %f WHERE ticker = 1 AND direction = 1 AND refval > %f" % (USDTOD, USDTOD))
 	cursor.execute("SELECT uid, t.name, direction, refval, t.value, ticker FROM subscribe s JOIN ticker t ON t.id = s.ticker WHERE direction = 1 AND t.value > refval*1.0025 OR direction = 0 AND t.value < refval*0.9975")
