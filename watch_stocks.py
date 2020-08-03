@@ -130,19 +130,23 @@ dp.add_handler(MessageHandler(Filters.text & ~Filters.command, search))
 updater.start_polling()
 
 url_currency = "https://iss.moex.com/iss/engines/currency/markets/selt/boards/CETS/securities.json?iss.meta=off&iss.only=marketdata&securities=USD000000TOD%2CEUR_RUB__TOD&marketdata.columns=SECID,LAST"
-url_stocks = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.json?iss.meta=off&iss.only=marketdata%2Csecurities&securities.columns=SECID,SHORTNAME,SECNAME&marketdata.columns=SECID,LAST"
+url_stocks = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.json?iss.meta=off&iss.only=marketdata&marketdata.columns=SECID,LAST"
 emoji = ['\U0001F600', '\U0001F603', '\U0001F604', '\U0001F601', '\U0001F606', '\U0001F605', '\U0001F923', '\U0001F602', '\U0001F642', '\U0001F643', '\U0001F609', '\U0001F60A', '\U0001F607', '\U0001F60B', '\U0001F61B', '\U0001F61C', '\U0001F92A', '\U0001F61D', '\U0001F911', '\U0001F92D', '\U0001F92B', '\U0001F914', '\U0001F922', '\U0001F92E', '\U0001F92E', '\U0001F927', '\U0001F975', '\U0001F976', '\U0001F974', '\U0001F635', '\U0001F92F', '\U0001F973', '\U0001F60E', '\U0001F4A9', '\U0001F648', '\U0001F649', '\U0001F64A', '\U0001F90F', '\U0001F91F', '\U0001F595', '\U0001F44D', '\U0001F44E', '\U0001F4AA', '\U0001F9E8', '\U0001F910','\U0001F928','\U0001F610','\U0001F611','\U0001F636','\U0001F60F','\U0001F612','\U0001F644','\U0001F62C','\U0001F925','\U0001F637','\U0001F44C','\U0001F926']
 while 1:
 	r = requests.get(url=url_currency)
 	data = r.json()
 	for row in data['marketdata']['data']:
-		if row[0] == 'USD000000TOD':
+		if row[0] == 'USD000000TOD' and row[1] is not None:
 			USDTOD = row[1]
-		if row[0] == 'EUR_RUB__TOD':
+			cursor.execute("UPDATE ticker SET value = %f, dt = DATETIME(CURRENT_TIMESTAMP, 'localtime') WHERE code = 'USD'" % (USDTOD))
+		if row[0] == 'EUR_RUB__TOD' and row[1] is not None:
 			EURTOD = row[1]
-	cursor.execute("UPDATE ticker SET value = %f, dt = DATETIME(CURRENT_TIMESTAMP, 'localtime') WHERE code = 'USD'" % (USDTOD))
-	cursor.execute("UPDATE ticker SET value = %f, dt = DATETIME(CURRENT_TIMESTAMP, 'localtime') WHERE code = 'EUR'" % (EURTOD))
+			cursor.execute("UPDATE ticker SET value = %f, dt = DATETIME(CURRENT_TIMESTAMP, 'localtime') WHERE code = 'EUR'" % (EURTOD))
 	r = requests.get(url=url_stocks)
+	data = r.json()
+	for row in data['marketdata']['data']:
+		if row[1] is not None:
+			cursor.execute("UPDATE ticker SET value = %f, dt = DATETIME(CURRENT_TIMESTAMP, 'localtime') WHERE code = '%s'" % (row[1], row[0]))
 	cursor.execute("UPDATE subscribe SET refval = (SELECT value FROM ticker WHERE id = subscribe.ticker) WHERE ticker = 1 AND type = 0 AND refval < (SELECT value FROM ticker WHERE id = subscribe.ticker)")
 	cursor.execute("UPDATE subscribe SET refval = (SELECT value FROM ticker WHERE id = subscribe.ticker) WHERE ticker = 1 AND type = 1 AND refval > (SELECT value FROM ticker WHERE id = subscribe.ticker)")
 	conn.commit()
