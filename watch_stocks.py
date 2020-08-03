@@ -34,7 +34,7 @@ def currency_command(update, context):
 	update.message.reply_text(text)
 
 def status_command(update, context):
-	cursor.execute("SELECT t.code, type, refval, t.value FROM subscribe s JOIN ticker t ON t.id = s.ticker WHERE uid = %d" % (update.effective_chat.id))
+	cursor.execute("SELECT t.code, type, refval, t.value FROM subscribe s JOIN ticker t ON t.id = s.ticker WHERE uid = %d ORDER BY class" % (update.effective_chat.id))
 	rows = cursor.fetchall()
 	text = "Действующих подписок нет \U0001F610"
 	if len(rows) > 0:
@@ -101,9 +101,9 @@ with open(os.path.join(base_dir, "config.json"), "r") as config_file:
 
 conn = sqlite3.connect(os.path.join(base_dir, "data.db"), check_same_thread=False)
 cursor = conn.cursor()
-cursor.execute("CREATE TABLE IF NOT EXISTS ticker (id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT, shortname TEXT COLLATE NOCASE, fullname TEXT, value REAL, dt DATETIME, UNIQUE(code))")
-cursor.execute("INSERT OR IGNORE INTO ticker (code, shortname, fullname) VALUES('USD', 'Доллар', 'Доллар США')")
-cursor.execute("INSERT OR IGNORE INTO ticker (code, shortname, fullname) VALUES('EUR', 'Евро', 'Евро')")
+cursor.execute("CREATE TABLE IF NOT EXISTS ticker (id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT, shortname TEXT COLLATE NOCASE, fullname TEXT, value REAL, class INTEGER, dt DATETIME, UNIQUE(code))")
+cursor.execute("INSERT OR IGNORE INTO ticker (code, shortname, fullname, class) VALUES('USD', 'Доллар', 'Доллар США', 1)")
+cursor.execute("INSERT OR IGNORE INTO ticker (code, shortname, fullname, class) VALUES('EUR', 'Евро', 'Евро', 1)")
 url = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.json?iss.meta=off&iss.only=securities&securities.columns=SECID,SHORTNAME,SECNAME"
 r = requests.get(url=url)
 data = r.json()
@@ -111,11 +111,11 @@ q = ""
 for row in data['securities']['data']:
 	if len(q) > 0:
 		q += ', '
-	q += "('%s','%s','%s')" % (row[0], row[1], row[2])
+	q += "('%s','%s','%s', 2)" % (row[0], row[1], row[2])
 if len(q) > 0:
-	q = "INSERT OR IGNORE INTO ticker (code, shortname, fullname) VALUES" + q
+	q = "INSERT OR IGNORE INTO ticker (code, shortname, fullname, class) VALUES" + q
 	cursor.execute(q)
-cursor.execute("CREATE TABLE IF NOT EXISTS subscribe (uid INTEGER, ticker INTEGER, type INTEGER, refval REAL, dt DATETIME, UNIQUE(uid, ticker, type))")
+cursor.execute("CREATE TABLE IF NOT EXISTS subscribe (uid INTEGER, ticker INTEGER, type INTEGER, refval REAL, rate REAL, dt DATETIME, UNIQUE(uid, ticker, type))")
 conn.commit()
 
 updater = Updater(token=config['TOKEN'], use_context=True)
