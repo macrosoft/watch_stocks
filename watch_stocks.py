@@ -35,7 +35,7 @@ def currency_command(update, context):
 	update.message.reply_text(text)
 
 def status_command(update, context):
-	cursor.execute("SELECT t.name, type, refval, t.value FROM subscribe s JOIN ticker t ON t.id = s.ticker WHERE uid = %d" % (update.effective_chat.id))
+	cursor.execute("SELECT t.code, type, refval, t.value FROM subscribe s JOIN ticker t ON t.id = s.ticker WHERE uid = %d" % (update.effective_chat.id))
 	rows = cursor.fetchall()
 	text = "Действующих подписок нет \U0001F610"
 	if len(rows) > 0:
@@ -50,7 +50,7 @@ def status_command(update, context):
 
 def subscribe_command(update, context):
 	arg = update.message.text.replace('/sub_', '').split('_')
-	cursor.execute("SELECT id, value FROM ticker WHERE name like '%s'" % (arg[0]))
+	cursor.execute("SELECT id, value FROM ticker WHERE code like '%s'" % (arg[0]))
 	rows = cursor.fetchall()
 	if len(rows) < 1:
 		return
@@ -68,11 +68,11 @@ def unsubscribe_command(update, context):
 	arg = update.message.text.replace('/unsub_', '').split('_')
 	emoji = ['\U0001F910','\U0001F928','\U0001F610','\U0001F611','\U0001F636','\U0001F60F','\U0001F612','\U0001F644','\U0001F62C','\U0001F925','\U0001F637','\U0001F44C','\U0001F926']
 	if arg[1] == 'rise':
-		cursor.execute("DELETE FROM subscribe WHERE uid = %d AND ticker = (SELECT id FROM ticker WHERE name like '%s') AND type = 1" % (update.effective_chat.id, arg[0]))
+		cursor.execute("DELETE FROM subscribe WHERE uid = %d AND ticker = (SELECT id FROM ticker WHERE code like '%s') AND type = 1" % (update.effective_chat.id, arg[0]))
 		conn.commit()
 		update.message.reply_text("Больше ни слова о росте %s %s" % (arg[0].upper(), random.choice(emoji)))
 	if arg[1] == 'fall':
-		cursor.execute("DELETE FROM subscribe WHERE uid = %d AND ticker = (SELECT id FROM ticker WHERE name like '%s') AND type = 0" % (update.effective_chat.id, arg[0]))
+		cursor.execute("DELETE FROM subscribe WHERE uid = %d AND ticker = (SELECT id FROM ticker WHERE code like '%s') AND type = 0" % (update.effective_chat.id, arg[0]))
 		conn.commit()
 		update.message.reply_text("Больше ни слова о падении %s %s" % (arg[0].upper(), random.choice(emoji)))
 
@@ -100,9 +100,9 @@ with open(os.path.join(base_dir, "config.json"), "r") as config_file:
 
 conn = sqlite3.connect(os.path.join(base_dir, "data.db"), check_same_thread=False)
 cursor = conn.cursor()
-cursor.execute("CREATE TABLE IF NOT EXISTS ticker (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, value REAL, dt DATETIME, UNIQUE(name))")
-cursor.execute("INSERT OR IGNORE INTO ticker (name) VALUES('USD')")
-cursor.execute("INSERT OR IGNORE INTO ticker (name) VALUES('EUR')")
+cursor.execute("CREATE TABLE IF NOT EXISTS ticker (id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT, value REAL, dt DATETIME, UNIQUE(code))")
+cursor.execute("INSERT OR IGNORE INTO ticker (code) VALUES('USD')")
+cursor.execute("INSERT OR IGNORE INTO ticker (code) VALUES('EUR')")
 cursor.execute("CREATE TABLE IF NOT EXISTS subscribe (uid INTEGER, ticker INTEGER, type INTEGER, refval REAL, dt DATETIME, UNIQUE(uid, ticker, type))")
 conn.commit()
 
@@ -128,14 +128,14 @@ while 1:
 			USDTOD = row[1]
 		if row[0] == 'EUR_RUB__TOD':
 			EURTOD = row[1]
-	cursor.execute("UPDATE ticker SET value = %f, dt = DATETIME(CURRENT_TIMESTAMP, 'localtime') WHERE name = 'USD'" % (USDTOD))
-	cursor.execute("UPDATE ticker SET value = %f, dt = DATETIME(CURRENT_TIMESTAMP, 'localtime') WHERE name = 'EUR'" % (EURTOD))
+	cursor.execute("UPDATE ticker SET value = %f, dt = DATETIME(CURRENT_TIMESTAMP, 'localtime') WHERE code = 'USD'" % (USDTOD))
+	cursor.execute("UPDATE ticker SET value = %f, dt = DATETIME(CURRENT_TIMESTAMP, 'localtime') WHERE code = 'EUR'" % (EURTOD))
 	r = requests.get(url=url_stocks)
 	STOCKS_LIST = r.json()['securities']['data']
 	cursor.execute("UPDATE subscribe SET refval = (SELECT value FROM ticker WHERE id = subscribe.ticker) WHERE ticker = 1 AND type = 0 AND refval < (SELECT value FROM ticker WHERE id = subscribe.ticker)")
 	cursor.execute("UPDATE subscribe SET refval = (SELECT value FROM ticker WHERE id = subscribe.ticker) WHERE ticker = 1 AND type = 1 AND refval > (SELECT value FROM ticker WHERE id = subscribe.ticker)")
 	conn.commit()
-	cursor.execute("SELECT uid, t.name, type, refval, t.value, ticker FROM subscribe s JOIN ticker t ON t.id = s.ticker WHERE type = 1 AND t.value > refval*1.0025 OR type = 0 AND t.value < refval*0.9975")
+	cursor.execute("SELECT uid, t.code, type, refval, t.value, ticker FROM subscribe s JOIN ticker t ON t.id = s.ticker WHERE type = 1 AND t.value > refval*1.0025 OR type = 0 AND t.value < refval*0.9975")
 	rows = cursor.fetchall()
 	for row in rows:
 		dir = "вырос \U0001F4C8" if row[2] else "упал \U0001F4C9"
