@@ -85,12 +85,10 @@ def search(update, context):
 		update.message.reply_text(text)
 		return
 	text = ""
-	t = "%%" + t + "%%"
-	cursor.execute("SELECT code, fullname, value FROM ticker WHERE code like ? OR shortname like ? OR fullname like ?", (t, t, t))
+	t = "%%" + t.upper() + "%%"
+	cursor.execute("SELECT code, fullname, value FROM ticker WHERE code like ? OR uc_shortname like ? OR uc_fullname like ? AND value NOT NULL", (t, t, t))
 	rows = cursor.fetchall()
 	for row in rows:
-		if row[2] is None:
-			continue
 		text += "%s: %.4f\n%s\n" % (row[0], row[2], row[1])
 		text += "/sub_%s_fall - сообщить когда цена начнёт падать \U0001F4C9\n" % (row[0].lower())
 		text += "/sub_%s_rise - сообщить когда цена начнёт расти \U0001F4C8\n\n" % (row[0].lower())
@@ -105,9 +103,9 @@ with open(os.path.join(base_dir, "config.json"), "r") as config_file:
 
 conn = sqlite3.connect(os.path.join(base_dir, "data.db"), check_same_thread=False)
 cursor = conn.cursor()
-cursor.execute("CREATE TABLE IF NOT EXISTS ticker (id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT, shortname TEXT COLLATE NOCASE, fullname TEXT, value REAL, class INTEGER, dt DATETIME, UNIQUE(code))")
-cursor.execute("INSERT OR IGNORE INTO ticker (code, shortname, fullname, class) VALUES('USD', 'Доллар', 'Доллар США', 1)")
-cursor.execute("INSERT OR IGNORE INTO ticker (code, shortname, fullname, class) VALUES('EUR', 'Евро', 'Евро', 1)")
+cursor.execute("CREATE TABLE IF NOT EXISTS ticker (id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT, shortname TEXT, fullname TEXT, uc_shortname TEXT, uc_fullname TEXT, value REAL, class INTEGER, dt DATETIME, UNIQUE(code))")
+cursor.execute("INSERT OR IGNORE INTO ticker (code, shortname, fullname, uc_shortname, uc_fullname, class) VALUES('USD', 'Dollar', 'Доллар США', 'DOLLAR', 'ДОЛЛАР США', 1)")
+cursor.execute("INSERT OR IGNORE INTO ticker (code, shortname, fullname, uc_shortname, uc_fullname, class) VALUES('EUR', 'Euro', 'Евро', 'EURO', 'ЕВРО', 1)")
 url = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.json?iss.meta=off&iss.only=securities&securities.columns=SECID,SHORTNAME,SECNAME"
 r = requests.get(url=url)
 data = r.json()
@@ -115,9 +113,9 @@ q = ""
 for row in data['securities']['data']:
 	if len(q) > 0:
 		q += ', '
-	q += "('%s','%s','%s', 2)" % (row[0], row[1], row[2])
+	q += "('%s','%s','%s','%s','%s', 2)" % (row[0], row[1], row[2], row[1].upper(), row[2].upper())
 if len(q) > 0:
-	q = "INSERT OR IGNORE INTO ticker (code, shortname, fullname, class) VALUES" + q
+	q = "INSERT OR IGNORE INTO ticker (code, shortname, fullname, uc_shortname, uc_fullname, class) VALUES" + q
 	cursor.execute(q)
 cursor.execute("CREATE TABLE IF NOT EXISTS subscribe (uid INTEGER, ticker INTEGER, type INTEGER, refval REAL, rate REAL, dt DATETIME, UNIQUE(uid, ticker, type))")
 conn.commit()
