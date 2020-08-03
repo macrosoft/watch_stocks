@@ -26,15 +26,15 @@ def start(update, context):
 
 def currency_command(update, context):
 	text = "USD: %.4f" % (USDTOD)
-	text += "\n /sub_usd_fall - сообщить когда цена начнёт падать \U0001F4C9"
-	text += "\n /sub_usd_rise - сообщить когда цена начнёт расти \U0001F4C8"
+	text += "\n/sub_usd_fall - сообщить когда цена начнёт падать \U0001F4C9"
+	text += "\n/sub_usd_rise - сообщить когда цена начнёт расти \U0001F4C8"
 	text += "\nEUR: %.4f" % (EURTOD)
-	text += "\n /sub_eur_fall - сообщить когда цена начнёт падать \U0001F4C9"
-	text += "\n /sub_eur_rise - сообщить когда цена начнёт расти \U0001F4C8"
+	text += "\n/sub_eur_fall - сообщить когда цена начнёт падать \U0001F4C9"
+	text += "\n/sub_eur_rise - сообщить когда цена начнёт расти \U0001F4C8"
 	update.message.reply_text(text)
 
 def status_command(update, context):
-	cursor.execute("SELECT t.code, type, refval, t.value FROM subscribe s JOIN ticker t ON t.id = s.ticker WHERE uid = %d ORDER BY class" % (update.effective_chat.id))
+	cursor.execute("SELECT t.code, type, refval, t.value FROM subscribe s JOIN ticker t ON t.id = s.ticker WHERE uid = %d ORDER BY class, t.code" % (update.effective_chat.id))
 	rows = cursor.fetchall()
 	text = "Действующих подписок нет \U0001F610"
 	if len(rows) > 0:
@@ -86,10 +86,14 @@ def search(update, context):
 		return
 	text = ""
 	t = "%%" + t + "%%"
-	cursor.execute("SELECT code, fullname FROM ticker WHERE code like ? OR shortname like ? OR fullname like ?", (t, t, t))
+	cursor.execute("SELECT code, fullname, value FROM ticker WHERE code like ? OR shortname like ? OR fullname like ?", (t, t, t))
 	rows = cursor.fetchall()
 	for row in rows:
-		text += "%s\n%s\n\n" % (row[0], row[1])
+		if row[2] is None:
+			continue
+		text += "%s: %.4f\n%s\n" % (row[0], row[2], row[1])
+		text += "/sub_%s_fall - сообщить когда цена начнёт падать \U0001F4C9\n" % (row[0].lower())
+		text += "/sub_%s_rise - сообщить когда цена начнёт расти \U0001F4C8\n\n" % (row[0].lower())
 	if len(text) > 0:
 		update.message.reply_text(text)
 	else:
