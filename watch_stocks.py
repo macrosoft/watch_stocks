@@ -11,7 +11,7 @@ import sqlite3
 from telegram import ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
-alarm_txt_prev = ['Хорошая новость!', 'Плохая новость!', 'Ого!', 'Шевелись!', 'Аларм!', 'Внимание!', 'Полундра!', 'Срочно!', 'Бип-биб!', 'Как тебе такое?', 'Дожили!', 'Алло!', 'Ты здесь?', 'Тут такое дело...', 'Вот ты и дождался!', 'Тссс...!', 'Кхе-кхе...', 'Докладываю!', 'Breaking news!', 'Ку-ку!', 'Короче, ']
+alarm_txt_prev = ['Хорошая новость!', 'Плохая новость!', 'Ого!', 'Шевелись!', 'Аларм!', 'Внимание!', 'Полундра!', 'Срочно!', 'Бип-биб!', 'Как тебе такое?', 'Дожили!', 'Алло!', 'Ты здесь?', 'Тут такое дело...', 'Вот ты и дождался!', 'Тссс...!', 'Кхе-кхе...', 'Докладываю!', 'Breaking news!', 'Ку-ку!', 'Короче,', 'Ты этого хотел?']
 USDTOD = 0
 EURTOD = 0
 
@@ -26,11 +26,9 @@ def start(update, context):
 
 def currency_command(update, context):
 	text = "USD: %.4f" % (USDTOD)
-	text += "\n/sub_usd_fall - сообщить когда цена начнёт падать \U0001F4C9"
-	text += "\n/sub_usd_rise - сообщить когда цена начнёт расти \U0001F4C8"
+	text += "\n/show_usd - подробнее"
 	text += "\nEUR: %.4f" % (EURTOD)
-	text += "\n/sub_eur_fall - сообщить когда цена начнёт падать \U0001F4C9"
-	text += "\n/sub_eur_rise - сообщить когда цена начнёт расти \U0001F4C8"
+	text += "\n/show_eur - подробнее"
 	update.message.reply_text(text)
 
 def status_command(update, context):
@@ -75,6 +73,31 @@ def unsubscribe_command(update, context):
 		conn.commit()
 		update.message.reply_text("Больше ни слова о падении %s %s" % (arg[0].upper(), random.choice(emoji)))
 
+def show_command(update, context):
+	arg = update.message.text.replace('/show_', '').split('_')
+	cursor.execute("SELECT id, code, fullname, value FROM ticker WHERE code like '%s'" % (arg[0]))
+	rows = cursor.fetchall()
+	if len(rows) < 1:
+		return
+	row = rows[0]
+	id = row[0]
+	ticker = row[1]
+	text = "%s: %.4f\n%s\n" % (row[1], row[3], row[2])
+	cursor.execute("SELECT t, type FROM (SELECT 1 t UNION SELECT 0) tt LEFT JOIN subscribe s ON s.type = tt.t AND uid = %d AND ticker = %d ORDER BY t" % (update.effective_chat.id, id))
+	rows = cursor.fetchall()
+	for row in rows:
+		if row[0] == 0:
+			if row[1] is None:
+				text += "/sub_%s_fall - сообщить когда цена начнёт падать \U0001F4C9\n" % (ticker.lower())
+			else:
+				text += "/unsub_%s_fall - не следить за падением цены \U0001F4C9\n" % (ticker.lower())
+		else:
+			if row[1] is None:
+				text += "/sub_%s_rise - сообщить когда цена начнёт расти \U0001F4C8\n" % (ticker.lower())
+			else:
+				text += "/unsub_%s_rise - не следить за ростом цены \U0001F4C8\n" % (ticker.lower())
+	update.message.reply_text(text)
+
 def load_securities_from_moex(url, c):
 	r = requests.get(url=url)
 	data = r.json()
@@ -110,12 +133,11 @@ def search(update, context):
 		return
 	text = ""
 	t = "%%" + t.upper() + "%%"
-	cursor.execute("SELECT code, fullname, value FROM ticker WHERE code like ? OR uc_shortname like ? OR uc_fullname like ? AND value NOT NULL", (t, t, t))
+	cursor.execute("SELECT code, fullname, value FROM ticker WHERE code like ? OR uc_shortname like ? OR uc_fullname like ? AND value NOT NULL LIMIT 5", (t, t, t))
 	rows = cursor.fetchall()
 	for row in rows:
 		text += "%s: %.4f\n%s\n" % (row[0], row[2], row[1])
-		text += "/sub_%s_fall - сообщить когда цена начнёт падать \U0001F4C9\n" % (row[0].lower())
-		text += "/sub_%s_rise - сообщить когда цена начнёт расти \U0001F4C8\n\n" % (row[0].lower())
+		text += "/show_%s - подробнее\n\n" % (row[0].lower())
 	if len(text) > 0:
 		update.message.reply_text(text)
 	else:
@@ -145,6 +167,7 @@ dp.add_handler(CommandHandler("currency", currency_command))
 dp.add_handler(CommandHandler("status", status_command))
 dp.add_handler(MessageHandler(Filters.regex(r'^/sub'), subscribe_command))
 dp.add_handler(MessageHandler(Filters.regex(r'^/unsub'), unsubscribe_command))
+dp.add_handler(MessageHandler(Filters.regex(r'^/show'), show_command))
 dp.add_handler(MessageHandler(Filters.text & ~Filters.command, search))
 updater.start_polling()
 
