@@ -12,6 +12,7 @@ from telegram import ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
 alarm_txt_prev = ['Хорошая новость!', 'Плохая новость!', 'Ого!', 'Шевелись!', 'Аларм!', 'Внимание!', 'Полундра!', 'Срочно!', 'Бип-биб!', 'Как тебе такое?', 'Дожили!', 'Алло!', 'Ты здесь?', 'Тут такое дело...', 'Вот ты и дождался!', 'Тссс...!', 'Кхе-кхе...', 'Докладываю!', 'Breaking news!', 'Ку-ку!', 'Короче,', 'Ты этого хотел?']
+emoji = ['\U0001F600', '\U0001F603', '\U0001F604', '\U0001F601', '\U0001F606', '\U0001F605', '\U0001F923', '\U0001F602', '\U0001F642', '\U0001F643', '\U0001F609', '\U0001F60A', '\U0001F607', '\U0001F60B', '\U0001F61B', '\U0001F61C', '\U0001F92A', '\U0001F61D', '\U0001F911', '\U0001F92D', '\U0001F92B', '\U0001F914', '\U0001F922', '\U0001F92E', '\U0001F92E', '\U0001F927', '\U0001F975', '\U0001F976', '\U0001F974', '\U0001F635', '\U0001F92F', '\U0001F973', '\U0001F60E', '\U0001F4A9', '\U0001F648', '\U0001F649', '\U0001F64A', '\U0001F90F', '\U0001F91F', '\U0001F595', '\U0001F44D', '\U0001F44E', '\U0001F4AA', '\U0001F9E8', '\U0001F910','\U0001F928','\U0001F610','\U0001F611','\U0001F636','\U0001F60F','\U0001F612','\U0001F644','\U0001F62C','\U0001F925','\U0001F637','\U0001F44C','\U0001F926']
 USDTOD = 0
 EURTOD = 0
 
@@ -43,6 +44,13 @@ def status_command(update, context):
 			t = row[2]*1.0025 if row[1] else row[2]*0.9975
 			dirn = "rise" if row[1] else "fall"
 			text += "%s %s: %.4f (%s%.4f)\nОтписаться: /unsub_%s_%s\n" % (dir, row[0], row[3], tdir, t, row[0].lower(), dirn)
+	else:
+		cursor.execute("SELECT code, fullname FROM ticker  WHERE value NOT NULL ORDER BY random() LIMIT 1")
+		rows = cursor.fetchall()
+		for row in rows:
+			text += "\n\nМогу предложить подписаться на:\n"
+			text += "%s %s\n" % (row[1], random.choice(emoji))
+			text += "/show_%s - подробнее\n\n" % (row[0].lower())
 	update.message.reply_text(text)
 
 def subscribe_command(update, context):
@@ -173,7 +181,6 @@ updater.start_polling()
 
 url_currency = "https://iss.moex.com/iss/engines/currency/markets/selt/boards/CETS/securities.json?iss.meta=off&iss.only=marketdata&securities=USD000000TOD%2CEUR_RUB__TOD&marketdata.columns=SECID,LAST"
 url_stocks = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.json?iss.meta=off&iss.only=marketdata&marketdata.columns=SECID,LAST"
-emoji = ['\U0001F600', '\U0001F603', '\U0001F604', '\U0001F601', '\U0001F606', '\U0001F605', '\U0001F923', '\U0001F602', '\U0001F642', '\U0001F643', '\U0001F609', '\U0001F60A', '\U0001F607', '\U0001F60B', '\U0001F61B', '\U0001F61C', '\U0001F92A', '\U0001F61D', '\U0001F911', '\U0001F92D', '\U0001F92B', '\U0001F914', '\U0001F922', '\U0001F92E', '\U0001F92E', '\U0001F927', '\U0001F975', '\U0001F976', '\U0001F974', '\U0001F635', '\U0001F92F', '\U0001F973', '\U0001F60E', '\U0001F4A9', '\U0001F648', '\U0001F649', '\U0001F64A', '\U0001F90F', '\U0001F91F', '\U0001F595', '\U0001F44D', '\U0001F44E', '\U0001F4AA', '\U0001F9E8', '\U0001F910','\U0001F928','\U0001F610','\U0001F611','\U0001F636','\U0001F60F','\U0001F612','\U0001F644','\U0001F62C','\U0001F925','\U0001F637','\U0001F44C','\U0001F926']
 url_bonds_TQOB = "https://iss.moex.com/iss/engines/stock/markets/bonds/boards/TQOB/securities.json?iss.meta=off&iss.only=marketdata&marketdata.columns=SECID,LAST"
 url_bonds_TQCB = "https://iss.moex.com/iss/engines/stock/markets/bonds/boards/TQCB/securities.json?iss.meta=off&iss.only=marketdata&marketdata.columns=SECID,LAST"
 while 1:
