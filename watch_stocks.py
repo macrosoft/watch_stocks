@@ -97,13 +97,14 @@ def unsubscribe_command(update, context):
 
 def show_command(update, context):
 	arg = update.message.text.replace('/show_', '').split('_')
-	rows = select("SELECT id, code, fullname, value FROM ticker WHERE code like '%s'" % (arg[0]))
+	rows = select("SELECT id, code, fullname, value, class FROM ticker WHERE code like '%s'" % (arg[0]))
 	if len(rows) < 1:
 		return
 	row = rows[0]
 	id = row[0]
 	ticker = row[1]
-	text = "%s: %.4f\n%s\n" % (row[1], row[3], row[2])
+	c = ['','валюта', 'акция', 'облигация'][row[4]]
+	text = "%s (%s): %.4f\n%s\n" % (row[1], c, row[3], row[2])
 	rows = select("SELECT t, type FROM (SELECT 1 t UNION SELECT 0) tt LEFT JOIN subscribe s ON s.type = tt.t AND uid = %d AND ticker = %d ORDER BY t" % (update.effective_chat.id, id))
 	for row in rows:
 		if row[0] == 0:
