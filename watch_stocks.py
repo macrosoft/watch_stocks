@@ -3,12 +3,14 @@
 
 import json
 import os
+import pytz
 import re
 import requests
 import time
 import threading
 import random
 import sqlite3
+from datetime import datetime
 from telegram import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryHandler, Filters
 
@@ -212,6 +214,10 @@ url_stocks = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/
 url_bonds_TQOB = "https://iss.moex.com/iss/engines/stock/markets/bonds/boards/TQOB/securities.json?iss.meta=off&iss.only=marketdata&marketdata.columns=SECID,LAST"
 url_bonds_TQCB = "https://iss.moex.com/iss/engines/stock/markets/bonds/boards/TQCB/securities.json?iss.meta=off&iss.only=marketdata&marketdata.columns=SECID,LAST"
 while 1:
+	t = datetime.now(tz=pytz.timezone('Europe/Moscow'))
+	if t.hour < 8:
+		time.sleep(60)
+		continue
 	r = requests.get(url=url_currency)
 	data = r.json()
 	try:
