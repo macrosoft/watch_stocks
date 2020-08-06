@@ -9,8 +9,8 @@ import time
 import threading
 import random
 import sqlite3
-from telegram import ReplyKeyboardMarkup, KeyboardButton
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+from telegram import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryHandler, Filters
 
 alarm_txt_prev = ['Хорошая новость!', 'Плохая новость!', 'Ого!', 'Шевелись!', 'Аларм!', 'Внимание!', 'Полундра!', 'Срочно!', 'Бип-биб!', 'Как тебе такое?', 'Дожили!', 'Алло!', 'Ты здесь?', 'Тут такое дело...', 'Вот ты и дождался!', 'Тссс...!', 'Кхе-кхе...', 'Докладываю!', 'Breaking news!', 'Ку-ку!', 'Короче,', 'Ты этого хотел?', 'Shit happens!', 'Ты сейчас умрёшь!']
 emoji = ['\U0001F600', '\U0001F603', '\U0001F604', '\U0001F601', '\U0001F606', '\U0001F605', '\U0001F923', '\U0001F602', '\U0001F642', '\U0001F643', '\U0001F609', '\U0001F60A', '\U0001F607', '\U0001F60B', '\U0001F61B', '\U0001F61C', '\U0001F92A', '\U0001F61D', '\U0001F911', '\U0001F92D', '\U0001F92B', '\U0001F914', '\U0001F922', '\U0001F92E', '\U0001F92E', '\U0001F927', '\U0001F975', '\U0001F976', '\U0001F974', '\U0001F635', '\U0001F92F', '\U0001F973', '\U0001F60E', '\U0001F4A9', '\U0001F648', '\U0001F649', '\U0001F64A', '\U0001F90F', '\U0001F91F', '\U0001F595', '\U0001F44D', '\U0001F44E', '\U0001F4AA', '\U0001F9E8', '\U0001F910','\U0001F928','\U0001F610','\U0001F611','\U0001F636','\U0001F60F','\U0001F612','\U0001F644','\U0001F62C','\U0001F925','\U0001F637','\U0001F44C','\U0001F926']
@@ -60,14 +60,13 @@ def status_command(update, context):
 			text += "/show_%s - подробнее\n\n" % (row[0].lower())
 	update.message.reply_text(text)
 
-def subscribe_command(update, context):
-	arg = update.message.text.replace('/sub_', '').split('_')
-	rows = select("SELECT id, value FROM ticker WHERE code like '%s'" % (arg[0]))
+def subscribe(ticker, type, update):
+	rows = select("SELECT id, value FROM ticker WHERE code like '%s'" % (ticker))
 	if len(rows) < 1:
 		return
 	ticker_id = rows[0][0]
 	value = rows[0][1]
-	dir = 1 if arg[1] == 'rise' else 0
+	dir = 1 if type == 'rise' else 0
 	try:
 		lock.acquire(True)
 		cursor.execute("INSERT OR REPLACE INTO subscribe (uid, ticker, type, refval, dt) VALUES(%d, %d, %d, (SELECT value FROM ticker WHERE id = %d), DATETIME(CURRENT_TIMESTAMP, 'localtime'))" % (update.effective_chat.id, ticker_id, dir, ticker_id))
@@ -77,7 +76,11 @@ def subscribe_command(update, context):
 	dirtxt = "расти" if dir else "падать"
 	dirtrg = ">" if dir else "<"
 	k = 1.0025 if dir else 0.9975
-	update.message.reply_text("Текущая стоимость %s: %.4f\nЯ сообщю, когда цена начнёт %s\U0001F60F Триггер: %s%.4f" % (arg[0].upper(), value, dirtxt, dirtrg, value*k))
+	updater.bot.send_message(update.effective_chat.id, text="Текущая стоимость %s: %.4f\nЯ сообщю, когда цена начнёт %s\U0001F60F Триггер: %s%.4f" % (ticker.upper(), value, dirtxt, dirtrg, value*k))
+
+def subscribe_command(update, context):
+	arg = update.message.text.replace('/sub_', '').split('_')
+	subscribe(arg[0], arg[1], update)
 
 def unsubscribe_command(update, context):
 	arg = update.message.text.replace('/unsub_', '').split('_')
@@ -167,6 +170,12 @@ def search(update, context):
 	else:
 		update.message.reply_text("Увы, ничего не найдено! \U00000034\U0000FE0F\U000020E3\U0001F631\U00000034\U0000FE0F\U000020E3")
 
+def button_press(update, context):
+	query = update.callback_query
+	arg = query.data.replace('sub_', '').split('_')
+	subscribe(arg[0], arg[1], update)
+	query.answer()
+
 base_dir = os.path.dirname(__file__)
 with open(os.path.join(base_dir, "config.json"), "r") as config_file:
 	config = json.load(config_file)
@@ -195,6 +204,7 @@ dp.add_handler(MessageHandler(Filters.regex(r'^/sub'), subscribe_command))
 dp.add_handler(MessageHandler(Filters.regex(r'^/unsub'), unsubscribe_command))
 dp.add_handler(MessageHandler(Filters.regex(r'^/show'), show_command))
 dp.add_handler(MessageHandler(Filters.text & ~Filters.command, search))
+updater.dispatcher.add_handler(CallbackQueryHandler(button_press))
 updater.start_polling()
 
 url_currency = "https://iss.moex.com/iss/engines/currency/markets/selt/boards/CETS/securities.json?iss.meta=off&iss.only=marketdata&securities=USD000000TOD%2CEUR_RUB__TOD&marketdata.columns=SECID,LAST"
@@ -224,8 +234,10 @@ while 1:
 		for row in rows:
 			dir = "вырос \U0001F4C8" if row[2] else "упал \U0001F4C9"
 			dirn = "rise" if row[2] else "fall"
-			text = "%s %s %s с %.4f до %.4f. %s Продолжить наблюдение: /sub_%s_%s" % (random.choice(alarm_txt_prev), row[1], dir, row[3], row[4], random.choice(emoji), row[1].lower(), dirn)
-			updater.bot.send_message(chat_id=row[0], text=text)
+			text = "%s %s %s с %.4f до %.4f. %s" % (random.choice(alarm_txt_prev), row[1], dir, row[3], row[4], random.choice(emoji))
+			keyboard = [[InlineKeyboardButton("Продолжить наблюдение \U0001F575", callback_data="sub_%s_%s" % (row[1].lower(), dirn))]]
+			reply_markup = InlineKeyboardMarkup(keyboard)
+			updater.bot.send_message(chat_id=row[0], text=text, reply_markup=reply_markup)
 			cursor.execute("DELETE FROM subscribe WHERE uid = %d AND ticker = %d AND type = %d" % (row[0], row[5], row[2]))
 		conn.commit()
 	finally:
